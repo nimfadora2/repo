@@ -1,0 +1,364 @@
+//   Prosta gra logiczna w odgadywanie liczb
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+
+#include <conio.h>
+#include <windows.h>
+#include <strings.h>
+#include <iostream>
+
+using namespace std;
+
+//----------------------------------------------------
+// Deklaracja klasy gry
+//----------------------------------------------------
+
+class TZgadywanka
+{
+    int z,t,runda;
+    void Czytaj_t();
+    void Oceniaj_t();
+    int  KoniecGry();
+  public:
+    void StronaTytulowa();
+    void InicjujGre();
+    void Graj();
+    int  JeszczeRaz();
+};
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+const int BLACK        = 0;
+const int BLUE         = 1;
+const int GREEN        = 2;
+const int CYAN         = 3;
+const int RED          = 4;
+const int MAGENTA      = 5;
+const int BROWN        = 6;
+const int LIGHTGRAY    = 7;
+const int DARKGRAY     = 8;
+const int LIGHTBLUE    = 9;
+const int LIGHTGREEN   = 10;
+const int LIGHTCYAN    = 11;
+const int LIGHTRED     = 12;
+const int LIGHTMAGENTA = 13;
+const int YELLOW       = 14;
+const int WHITE        = 15;
+
+static int __BACKGROUND = BLACK;
+static int __FOREGROUND = LIGHTGRAY;
+
+// Procedura ustawia pozycjê wydruku w oknie konsoli
+//----------------------------------------------------
+void gotoxy(int x, int y)
+{
+  COORD c;
+
+  c.X = x - 1;
+  c.Y = y - 1;
+  SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), c);
+}
+
+// Procedura ustawia kolor t³a wydruku
+//----------------------------------------------------
+void textbackground(int color)
+{
+  __BACKGROUND = color;
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),
+    __FOREGROUND + (color << 4));
+}
+
+// Procedura ustawia kolor tekstu
+//----------------------------------------------------
+void textcolor(int color)
+{
+  __FOREGROUND = color;
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),
+    color + (__BACKGROUND << 4));
+}
+
+// Procedura ustawia atrybuty koloru tekstu i t³a
+//----------------------------------------------------
+void textattr(int _attr)
+{
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), _attr);
+}
+
+// Funkcja zwraca aktualn¹ pozycjê x kursora
+//----------------------------------------------------
+int wherex()
+{
+  CONSOLE_SCREEN_BUFFER_INFO info;
+
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+  return info.dwCursorPosition.X + 1;
+}
+
+// Funkcja zwraca aktualn¹ pozycjê y kursora
+//----------------------------------------------------
+int wherey()
+{
+  CONSOLE_SCREEN_BUFFER_INFO info;
+
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+  return info.dwCursorPosition.Y + 1;
+}
+
+// Procedura czyœci zawartoœæ okna konsoli
+//----------------------------------------------------
+void clrscr()
+{
+  DWORD written;
+
+  FillConsoleOutputAttribute(GetStdHandle (STD_OUTPUT_HANDLE),
+    __FOREGROUND + (__BACKGROUND << 4), 2000, (COORD){0, 0}, &written);
+  FillConsoleOutputCharacter(GetStdHandle(STD_OUTPUT_HANDLE), ' ',
+    2000, (COORD){0, 0}, &written);
+  gotoxy(1, 1);
+}
+
+// Procedura ukrywa kursor okienka konsoli
+//------------------------------------------------------
+void CursorOff()
+{
+  CONSOLE_CURSOR_INFO Info;
+
+  GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+  Info.bVisible = 0;
+  SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+};
+
+// Procedura przywraca kursor okienka konsoli
+//------------------------------------------------------
+void CursorOn()
+{
+  CONSOLE_CURSOR_INFO Info;
+
+  GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+  Info.bVisible = -1;
+  SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+};
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+string PL(string s)
+{
+  int i;
+  char c;
+
+  for(i = 0; i < s.length(); i++)
+  {
+    switch(s[i])
+    {
+      case '¹' : c = char(165); break;
+      case 'æ' : c = char(134); break;
+      case 'ê' : c = char(169); break;
+      case '³' : c = char(136); break;
+      case 'ñ' : c = char(228); break;
+      case 'ó' : c = char(162); break;
+      case 'œ' : c = char(152); break;
+      case '¿' : c = char(190); break;
+      case 'Ÿ' : c = char(171); break;
+      case '¥' : c = char(164); break;
+      case 'Æ' : c = char(143); break;
+      case 'Ê' : c = char(168); break;
+      case '£' : c = char(157); break;
+      case 'Ñ' : c = char(227); break;
+      case 'Ó' : c = char(224); break;
+      case 'Œ' : c = char(151); break;
+      case '¯' : c = char(189); break;
+      case '' : c = char(141); break;
+      default:   c = s[i]; 
+    };
+    s[i] = c;
+  };
+  return(s);
+}
+
+// Procedura centruje w bie¿¹cym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+void Centruj(string t)
+{
+  gotoxy(1 + (80 - t.length()) / 2, wherey());
+  cout << t << endl;
+}
+
+// Procedura rysuje pojedyncz¹ ramkê ze znaków
+// tabelek. Parametry okreœlaj¹ wspó³rzêdne
+// lewego górnego i prawego dolnego naro¿nika
+//----------------------------------------------------
+void Ramka(int xp,int yp,int xk,int yk)
+{
+  int i;
+
+  gotoxy(xp,yp); putch(char(218));
+  gotoxy(xp,yk); putch(char(192));
+  gotoxy(xk,yp); putch(char(191));
+  gotoxy(xk,yk); putch(char(217));
+  for(i = xp + 1; i <= xk - 1; i++)
+  {
+    gotoxy(i,yp); putch(char(196));
+    gotoxy(i,yk); putch(char(196));
+  };
+  for(i = yp + 1; i <= yk - 1; i++)
+  {
+    gotoxy(xp,i); putch(char(179));
+    gotoxy(xk,i); putch(char(179));
+  };
+}
+
+//----------------------------------------------------
+// Definicje metod klasy gry
+//----------------------------------------------------
+
+// Wyœwietlamy stronê tytu³ow¹ z krótk¹ instrukcj¹.
+// Czekamy na klawisz, czyœcimy ekran i wracamy.
+//----------------------------------------------------
+void TZgadywanka::StronaTytulowa()
+{
+  textbackground(0); clrscr();
+  gotoxy(1,3); textattr(0x4e);
+  Centruj(PL("                                  "));
+  Centruj(PL("  Z G A D Y W A N K A ----------  "));
+  Centruj(PL("  ---------------L I C Z B O W A  "));
+  Centruj(PL("                                  "));
+  textattr(0x1f);
+  Centruj(PL("                                  "));
+  Centruj(PL("    (C)2004 mgr Jerzy Wa³aszek    "));
+  Centruj(PL("                                  "));
+  textattr(0x2e);
+  Centruj(PL("                                  "));
+  Centruj(PL("     I Liceum Ogólnokszta³c¹ce    "));
+  Centruj(PL("   im. Kazimierza  Brodziñskiego  "));
+  Centruj(PL("             w Tarnowie           "));
+  Centruj(PL("                                  "));
+  textattr(0xf0);
+  Centruj(PL("                                  "));
+  Centruj(PL("   Odgadnij  w piêciu kolejkach   "));
+  Centruj(PL(" liczbê wylosowan¹ przez komputer "));
+  Centruj(PL("       z zakresu od 1 do 99.      "));
+  Centruj(PL("                                  "));
+  textattr(0xf4);
+  Centruj(PL("        Gdy bêdziesz gotowy,      "));
+  Centruj(PL("     naciœnij dowolny klawisz     "));
+  Centruj(PL("                                  "));
+  textattr(0x0e); Ramka(23,2,58,23);
+  while(getch() == '\0'); // Oczekiwanie na dowolny klawisz
+  textattr(0x0f); clrscr();
+}
+
+// Inicjujemy wszystkie zmienne gry
+//----------------------------------------------------
+void TZgadywanka::InicjujGre()
+{
+  z     = 1 + rand() % 100;
+  runda = 1;
+}
+
+// Wypisujemy numer rundy i odczytujemy
+// typowanie gracza do pola t
+//----------------------------------------------------
+void TZgadywanka::Czytaj_t()
+{
+  textcolor(GREEN);
+  cout << "----------\n"
+          "Runda nr " << runda << endl
+       << "----------\n\n";
+  textcolor(WHITE);
+  cout << PL("Podaj swoj¹ propozycjê liczby: ");
+  CursorOn(); cin >> t; CursorOff();
+}
+
+// Procedura ocenia rundê. Mog¹ byæ trzy mo¿liwoœci:
+// - gracz odgad³ liczbê komputera
+// - liczba gracza jest wiêksza od liczby komputera
+// - liczba gracza jest mniejsza od liczby komputera
+//----------------------------------------------------
+void TZgadywanka::Oceniaj_t()
+{
+  if(t == z)  // gracz odgad³
+  {
+    textcolor(YELLOW);
+    cout << PL("\n\nGRATULACJE!\n\nLiczbê ") << z
+         << PL(" odgad³eœ za ") << runda << " razem.\n";
+  }
+  else
+  {
+    gotoxy(35, wherey() - 1); textcolor(LIGHTRED);
+    cout << ((t > z ) ? PL("ZA DU¯O...\n") : PL("ZA MA£O...\n"))
+         << endl << endl;
+  };
+}
+
+// Metoda sprawdza warunek zakoñczenia gry. Najpierw
+// sprawdzane jest odgadniêcie liczby komputera. Jeœli
+// nie wyst¹pi³o, zwiêkszany jest numer rundy. Jeœli
+// numer rundy przekracza 5, gra jest równie¿ koñczona
+//----------------------------------------------------
+int TZgadywanka::KoniecGry()
+{
+  if(t == z)
+    return(true);
+  else
+  {
+    if(++runda > 5)
+    {
+      textcolor(LIGHTCYAN);
+      cout << PL("\n\nGRA SKOÑCZONA\n\n");
+      textcolor(YELLOW);
+      cout << PL("Nie uda³o ci siê odgadn¹æ liczby ") << z << endl;
+      return(true);
+    };
+  };
+  return(false);
+}
+
+// Ta metoda kontroluje rozgrywkê
+//----------------------------------------------------
+void TZgadywanka::Graj()
+{
+  do
+  {
+    Czytaj_t();
+    Oceniaj_t();
+  } while(!KoniecGry());
+}
+
+// Metoda sprawdza, czy gracz
+// ma ochotê na now¹ rozgrywkê
+//----------------------------------------------------
+int TZgadywanka::JeszczeRaz()
+{
+  char c;
+
+  textcolor(WHITE);
+  cout << "\nGrasz jeszcze raz ? [T] = Tak, inny = Nie ";
+  do
+  {
+    c = getch();
+  } while(c == '\n');
+  return(toupper(c) == 'T');
+}
+
+//----------------------------------------------------
+// Program g³ówny
+//----------------------------------------------------
+
+int main()
+{
+  TZgadywanka gra;
+
+  CursorOff();
+  srand((unsigned)time(NULL));
+  do
+  {
+    gra.StronaTytulowa();
+    gra.InicjujGre();
+    gra.Graj();
+  } while(gra.JeszczeRaz());
+  textattr(0x07); clrscr(); CursorOn(); return(0);
+} 
