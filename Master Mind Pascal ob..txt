@@ -1,0 +1,379 @@
+//          M A S T E R   M I N D
+//            WERSJA  OBIEKTOWA
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+
+program mastermind;
+
+uses Crt;
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+function PL(s : string) : string;
+var
+  i : integer;
+  c : char;
+begin
+  for i := 1 to length(s) do
+  begin
+   case s[i] of
+      '¹' : c := #165;
+      'æ' : c := #134;
+      'ê' : c := #169;
+      '³' : c := #136;
+      'ñ' : c := #228;
+      'ó' : c := #162;
+      'œ' : c := #152;
+      '¿' : c := #190;
+      'Ÿ' : c := #171;
+      '¥' : c := #164;
+      'Æ' : c := #143;
+      'Ê' : c := #168;
+      '£' : c := #157;
+      'Ñ' : c := #227;
+      'Ó' : c := #224;
+      'Œ' : c := #151;
+      '¯' : c := #189;
+      '' : c := #141;
+      else
+        c := s[i]; 
+    end;
+    s[i] := c;
+  end;
+  Result := s;
+end;
+
+// Procedura centruje w bie¿¹cym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+procedure Centruj(t : string);
+begin
+  GotoXY(1 + (80-length(t)) div 2, WhereY);
+  writeln(t);
+end;
+
+// Procedura rysuje pojedyncz¹ ramkê ze znaków
+// tabelek. Parametry okreœlaj¹ wspó³rzêdne
+// lewego górnego i prawego dolnego naro¿nika
+//----------------------------------------------------
+procedure Ramka(xp,yp,xk,yk : integer);
+var
+  i : integer;
+begin
+  GotoXY(xp,yp); write(#218);
+  GotoXY(xp,yk); write(#192);
+  GotoXY(xk,yp); write(#191);
+  GotoXY(xk,yk); write(#217);
+  for i := xp + 1 to xk - 1 do
+  begin
+    GotoXY(i,yp); write(#196);
+    GotoXY(i,yk); write(#196);
+  end;
+  for i := yp + 1 to yk - 1 do
+  begin
+    GotoXY(xp,i); write(#179);
+    GotoXY(xk,i); write(#179);
+  end;
+end;
+
+//------------------------------------------------------
+// PROGRAM GRY
+//------------------------------------------------------
+
+// Deklaracje klas
+//******************************************************
+
+type
+
+  TKod_z = class
+      tz : array[0..3] of integer;
+      constructor Create;
+      procedure   Inicjuj;
+      procedure   Wyswietl;
+      procedure   Oceniaj(var t : array of integer);
+  end;
+
+  TKod_t = class(TKod_z)
+      procedure Inicjuj(runda : integer);
+      procedure Wyswietl(runda,kursor : integer);
+  end;      
+
+  TMasterMind = class
+    private
+      z     : TKod_z;
+      t     : TKod_t;
+      runda : integer;
+      procedure Ocen_t;
+      function  t_rowne_z : boolean;
+      function  KoniecGry : boolean;
+    public
+      constructor Create;
+      procedure   StronaTytulowa;
+      procedure   Graj;
+      function    JeszczeRaz : boolean;
+    end;
+
+// Definicje metod klas
+//----------------------------------------------------
+
+// Obiekt TKod_z
+//****************************************************
+
+constructor TKod_z.Create;
+begin
+  // standardowe dzia³anie
+end;
+
+// Metoda losuje kod kolorów dla komputera i umieszcza
+// go w tablicy tz obiektu
+//------------------------------------------------------
+procedure   TKod_z.Inicjuj;
+var
+  i : integer;
+begin
+  for i := 0 to 3 do tz[i] := random(6);
+end;
+
+// Metoda wyœwietla na bie¿¹cej pozycji kolejne
+// kolory zawarte w kodzie tz. Kolory s¹ wyœwietlane
+// w postaci kolorowych prostok¹tów oddzielonych spacj¹.
+//------------------------------------------------------
+procedure TKod_z.Wyswietl;
+const
+  kolory : array[0..5] of integer =
+  (Black,LightBlue,LightGreen,LightRed,LightMagenta,Yellow);
+var
+  i : integer;
+begin
+  for i := 0 to 3 do
+  begin
+    TextAttr := $80 + kolory[tz[i]]; write(#219' ');
+  end;
+end;
+
+// Procedura porównuje podany jej w formie tablicy kod
+// z kodem w polu tz. Wynik jest wyœwietlany na bie¿¹cej
+// pozycji ekranu w postaci gwiazdek czarnych - zgodnoœæ
+// kolorów i pozycji oraz bia³ych - zgodnoœæ kolorów
+//------------------------------------------------------
+procedure TKod_z.Oceniaj(var t : array of integer);
+var
+  kz,kt : array[0..3] of integer;
+  czarne,biale,i,j : integer;
+begin
+  kz := tz; kt := t;
+  czarne := 0;
+  for i := 0 to 3 do
+    if kt[i] = kz[i] then
+    begin
+      inc(czarne); kz[i] := -1; kt[i] := -2;
+    end;
+  biale := 0;
+  for i := 0 to 3 do
+    for j := 0 to 3 do
+      if kt[i] = kz[j] then
+      begin
+        inc(biale); kz[j] := -1; kt[i] := -2; break;
+      end;
+  TextAttr := $80; for i := 1 to czarne do write('* ');
+  TextAttr := $8f; for i := 1 to biale  do write('* ');
+end;
+
+// Obiekt TKod_t
+//***********************************************************
+
+// Zmodyfikowana procedura wyœwietlania kodu tz,
+// z której korzysta obiekt kodu gracza. Wyœwietla
+// ona w bie¿¹cym wierszu ekranu segment gry, który
+// oprócz kodu zawieraæ mo¿e dodatkowo kursor, czyli
+// prostok¹tn¹ ramkê otaczaj¹c¹ kwadrat koloru na
+// pozycji kursor. Przed kodem koloru wyœwietlony
+// zostaje numer rundy, który obiekt kodu gracza
+// otrzymuje z obiektu gry.
+//------------------------------------------------------
+procedure TKod_t.Wyswietl(runda,kursor : integer);
+var
+  y : integer;
+begin
+  y := WhereY; // zapamiêtujemy pozycjê wydruku
+  TextAttr := $87; GotoXY(1,y);
+  Centruj('                    ');
+  GotoXY(31,WhereY); write(runda : 2, ': ');
+
+  inherited Wyswietl;  // do wyœwietlenia kodu wykorzystujemy
+                       // odziedziczon¹ metodê
+  writeln('        ');
+  TextAttr := $80; Centruj('____________________');
+  if kursor >= 0 then
+  begin
+    TextAttr := $84; Ramka(34 + 2 * kursor, y, 36 + 2 * kursor, y + 2);
+  end;
+  GotoXY(1,y);  // odtwarzamy pozycjê wydruku
+end;
+
+// Procedura odczytuje kod koloru gracza.
+//------------------------------------------------------
+procedure TKod_t.Inicjuj(runda : integer);
+var
+  x,i : integer;
+  c     : char;
+begin
+  for i := 0 to 3 do tz[i] := 0;
+  x := 0;
+  repeat
+    Wyswietl(runda,x);
+    repeat
+      c := ReadKey;
+    until c <> #0;
+    Wyswietl(runda,-1); // to usunie kursor z ekranu
+    case c of
+      #75 : x     := (x + 3) mod 4;     //strza³ka w lewo
+      #77 : x     := (x + 1) mod 4;     //strza³ka w prawo
+      #72 : tz[x] := (tz[x] + 1) mod 6; //strza³ka w górê
+      #80 : tz[x] := (tz[x] + 5) mod 6; //strza³ka w dó³
+    end;
+  until c = #13; // klawisz Enter
+end;
+
+// Obiekt TMasterMind
+//*************************************************************
+
+// Metoda ocenia kod wprowadzony przez gracza. Wydruk
+// jest przemieszczany do nastêpnego segmentu gry.
+//------------------------------------------------------
+procedure TMasterMind.Ocen_t;
+begin
+  GotoXY(43, WhereY + 1); // ustawiamy pozycjê oceny
+  z.Oceniaj(t.tz);        // oceniamy kod gracza
+  writeln; writeln;       // przechodzimy do nastêpnego segmentu
+end;
+
+// Metoda porównuje obiekty z i t. Zwraca true, jeœli
+// zawieraj¹ ten sam kod.
+//------------------------------------------------------
+function TMasterMind.t_rowne_z : boolean;
+var
+  test : boolean;
+  i    : integer;
+begin
+  test := true;
+  for i := 0 to 3 do test := test and (z.tz[i] = t.tz[i]);
+  Result := test;
+end;
+
+// Metoda testuje warunek zakoñczenia gry. Jeœli gra siê
+// koñczy, wypisuje odpowiedni komunikat i zwraca true
+//------------------------------------------------------
+function TMasterMind.KoniecGry : boolean;
+begin
+  inc(runda);      // zwiêkszamy numer rundy
+  Result := false; // zak³adamy, ¿e gra siê nie koñczy
+  if t_rowne_z then
+  begin
+    TextAttr := $0e;
+    Centruj(PL('GRATULACJE - odgad³eœ kod komputera!'));
+    GotoXY(35,3); z.Wyswietl;  // wyœwietlamy kod komputera
+    Result := true;
+  end
+  else if runda > 6 then
+  begin
+    TextAttr := $0c;
+    Centruj(PL('GRA SKOÑCZONA - nie odgad³eœ kodu komputera!'));
+    GotoXY(35,3); z.Wyswietl;
+    Result := true
+  end;
+end;
+
+constructor TMasterMind.Create;
+begin
+  z := TKod_z.Create;
+  t := TKod_t.Create;
+end;
+
+// Metoda wyœwietla stronê tytu³ow¹ i czeka na
+// dowolny klawisz, po czym czyœci ekran.
+//------------------------------------------------------
+procedure TMasterMind.StronaTytulowa;
+begin
+  TextAttr := $07; ClrScr;
+  GotoXY(1,3);
+  TextAttr := $3b;
+  Centruj(PL('                                  '));
+  Centruj(PL('  GRA INTELEKTU ----------------  '));
+  Centruj(PL('  -------------------MASTER MIND  '));
+  Centruj(PL('                                  '));
+  TextAttr := $1f;
+  Centruj(PL('                                  '));
+  Centruj(PL('    (C)2004 mgr Jerzy Wa³aszek    '));
+  Centruj(PL('                                  '));
+  TextAttr := $2e;
+  Centruj(PL('                                  '));
+  Centruj(PL('     I Liceum Ogólnokszta³c¹ce    '));
+  Centruj(PL('   im. Kazimierza  Brodziñskiego  '));
+  Centruj(PL('             w Tarnowie           '));
+  Centruj(PL('                                  '));
+  TextAttr := $f0;
+  Centruj(PL('                                  '));
+  Centruj(PL('   Odgadnij w szeœciu kolejkach   '));
+  Centruj(PL('   kod koloru  wylosowany przez   '));
+  Centruj(PL('    komputer z 6 ró¿nych barw.    '));
+  Centruj(PL('                                  '));
+  TextAttr := $f4;
+  Centruj(PL('        Gdy bêdziesz gotowy,      '));
+  Centruj(PL('     naciœnij dowolny klawisz     '));
+  Centruj(PL('                                  '));
+  TextAttr := $0e; Ramka(23,2,58,23);
+  while ReadKey = #0 do; // Oczekiwanie na dowolny klawisz
+  TextAttr := $07; ClrScr;
+end;
+
+// Metoda odpowiedzialna za prowadzenie gry.
+//------------------------------------------------------
+procedure TMasterMind.Graj;
+begin
+  z.Inicjuj; runda := 1;
+  TextAttr := $4e;
+  Centruj('    MASTER  MIND    ');
+  TextAttr := $87;
+  Centruj('                    ');
+  Centruj('    ? ? ? ?         ');
+  Centruj('                    ');
+  repeat
+    t.Inicjuj(runda);
+    Ocen_t;
+  until KoniecGry;
+end;
+
+// Metoda upewnia siê, ¿e gracz ma ochotê na jeszcze
+// jedn¹ grê. Zwraca w atkim wypadku true.
+//------------------------------------------------------
+function TMasterMind.JeszczeRaz : boolean;
+begin
+  GotoXY(1,24); TextColor(White);
+  Centruj('Zagrasz jeszcze raz ? [T] = Tak, [inny] = Nie');
+  Result := (UpCase(ReadKey) = 'T');
+end;
+
+// Blok g³ówny programu
+//--------------------------------------------------
+
+var
+  gra : TMasterMind;
+  a   : integer;
+
+begin
+  a := TextAttr; CursorOff;
+  Randomize;
+  gra := TMasterMind.Create;
+  with gra do
+    repeat
+      StronaTytulowa;
+      Graj;
+    until not JeszczeRaz;
+  TextAttr := a; CursorOn; ClrScr;
+end. 
