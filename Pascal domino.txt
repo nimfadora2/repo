@@ -1,0 +1,502 @@
+//               D O M I N O
+//            WERSJA FUNKCYJNA
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+
+program GraDomino;
+
+uses Crt, Windows;
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+function PL(s : string) : string;
+var
+  i : integer;
+  c : char;
+begin
+  for i := 1 to length(s) do
+  begin
+   case s[i] of
+      '¹' : c := #165;
+      'æ' : c := #134;
+      'ê' : c := #169;
+      '³' : c := #136;
+      'ñ' : c := #228;
+      'ó' : c := #162;
+      'œ' : c := #152;
+      '¿' : c := #190;
+      'Ÿ' : c := #171;
+      '¥' : c := #164;
+      'Æ' : c := #143;
+      'Ê' : c := #168;
+      '£' : c := #157;
+      'Ñ' : c := #227;
+      'Ó' : c := #224;
+      'Œ' : c := #151;
+      '¯' : c := #189;
+      '' : c := #141;
+      else
+        c := s[i]; 
+    end;
+    s[i] := c;
+  end;
+  Result := s;
+end;
+
+// Procedura centruje w bie¿¹cym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+procedure Centruj(t : string);
+begin
+  GotoXY(1 + (80-length(t)) div 2, WhereY);
+  writeln(t);
+end;
+
+// Procedura rysuje pojedyncz¹ ramkê ze znaków
+// tabelek. Parametry okreœlaj¹ wspó³rzêdne
+// lewego górnego i prawego dolnego naro¿nika
+//----------------------------------------------------
+procedure Ramka(xp,yp,xk,yk : integer);
+var
+  i : integer;
+begin
+  GotoXY(xp,yp); write(#218);
+  GotoXY(xp,yk); write(#192);
+  GotoXY(xk,yp); write(#191);
+  GotoXY(xk,yk); write(#217);
+  for i := xp + 1 to xk - 1 do
+  begin
+    GotoXY(i,yp); write(#196);
+    GotoXY(i,yk); write(#196);
+  end;
+  for i := yp + 1 to yk - 1 do
+  begin
+    GotoXY(xp,i); write(#179);
+    GotoXY(xk,i); write(#179);
+  end;
+end;
+
+// Funkcja odczytuje znak na pozycji p okna konsoli
+// Uwaga - znaki ramki bêd¹ odczytane nieprawid³owo jako
+// literki.
+//------------------------------------------------------
+function Znak_na_pozycji(p : COORD) : char;
+var
+  c : char;
+  k : integer;
+begin
+  dec(p.x);
+  dec(p.y);
+  ReadConsoleOutputCharacter(GetStdHandle(STD_OUTPUT_HANDLE),
+                             addr(c),1,p,k);
+  Result := c;
+end;
+
+//------------------------------------------------------
+// PROGRAM GRY
+//------------------------------------------------------
+
+// Sta³e definiuj¹ce kierunek uk³adania kostek domina
+//------------------------------------------------------
+const
+  gora  = 0;
+  prawo = 1;
+  dol   = 2;
+  lewo  = 3;
+
+// Sta³a definiuj¹ca rodzaj znaku kostki domina w zale¿noœci
+// od poprzedniego kierunku uk³adania i bie¿¹cego.
+//------------------------------------------------------
+  domino : string[16] = '-\X/\|/|X/-\/|\|';
+
+// Sta³a definiuj¹ca znaki dla wal¹cych siê kostek domina
+//------------------------------------------------------
+  upadek : string[16] = '/-/-|\-\\-\||/|/';
+
+  MAX_STOS = 840; // Maksymalny rozmiar stosu
+
+// Definicje typów
+//------------------------------------------------------
+type
+  TKostka = record
+    p   : COORD;   // wspó³rzêdne w okienku konsoli
+    kod : integer; // kod kierunkowy
+  end;
+
+  TGracz = record
+    stos      : array[0..MAX_STOS] of TKostka;
+    wskaznik  : integer;
+    pozycja   : COORD;
+    obecny    : integer;
+    poprzedni : integer;
+    kkod      : integer;
+    wynik     : integer;
+    dlugosc   : integer;
+    zderzenie : boolean;
+  end;
+
+//------------------------------------------------------
+// Zmienne globalne
+//------------------------------------------------------
+var
+  gracz_bialy, gracz_czarny : TGracz;
+
+// Procedura odczytuje kostkê ze stosu
+//------------------------------------------------------
+procedure Czytaj(var g : TGracz);
+begin
+  with g do
+  begin
+    if wskaznik > 0 then dec(wskaznik);
+    with stos[wskaznik] do
+    begin
+      pozycja := p; kkod := kod;
+    end;
+  end;
+end;
+
+// Procedura zapisuje kostkê na stosie
+//------------------------------------------------------
+procedure Zapisz(var g : TGracz);
+begin
+  with g do
+    if wskaznik <= MAX_STOS then
+    begin
+      with stos[wskaznik] do
+      begin
+        p := pozycja; kod := poprzedni * 4 + obecny;
+      end;
+      inc(wskaznik);
+    end;
+end;
+
+// Procedura zapisuje na stosie bie¿¹c¹ kostkê, a na jej
+// pozycji rysuje g³owicê X
+//------------------------------------------------------
+procedure PiszGlowice(var g : TGracz; a : integer);
+begin
+  TextAttr := a;
+  with g do
+  begin
+    GotoXY(pozycja.X,pozycja.Y); write('X');
+  end;
+end;
+
+// Procedura wyœwietla stronê tytu³ow¹, czeka na dowolny
+// klawisz i czyœci ekran
+//------------------------------------------------------
+procedure StronaTytulowa;
+begin
+  TextAttr := $07; ClrScr;
+  GotoXY(1,4);
+  TextAttr := $8f;
+  Centruj(PL('                                  '));
+  Centruj(PL('            D O M I N O           '));
+  Centruj(PL('                                  '));
+  TextAttr := $71;
+  Centruj(PL('                                  '));
+  Centruj(PL('    (C)2004 mgr Jerzy Wa³aszek    '));
+  Centruj(PL('                                  '));
+  TextAttr := $9f;
+  Centruj(PL('                                  '));
+  Centruj(PL('     I Liceum Ogólnokszta³c¹ce    '));
+  Centruj(PL('   im. Kazimierza  Brodziñskiego  '));
+  Centruj(PL('             w Tarnowie           '));
+  Centruj(PL('                                  '));
+  TextAttr := $f1;
+  Centruj(PL('                                  '));
+  Centruj(PL('   Pokonaj komputer w uk³adaniu   '));
+  Centruj(PL('           kostek domina          '));
+  Centruj(PL('                                  '));
+  TextAttr := $f4;
+  Centruj(PL('        Gdy bêdziesz gotowy,      '));
+  Centruj(PL('     naciœnij dowolny klawisz     '));
+  Centruj(PL('                                  '));
+  TextAttr := $0e; Ramka(23,3,58,22);
+  while ReadKey = #0 do; // Oczekiwanie na dowolny klawisz
+  TextAttr := $07; ClrScr;
+end;
+
+// Procedura inicjuje wszystkie zmienne rundy
+//------------------------------------------------------
+procedure InicjujRunde;
+begin
+  with gracz_bialy do
+  begin
+    wskaznik  := 0;
+    obecny    := lewo;
+    poprzedni := lewo;
+    pozycja.X := 55;
+    pozycja.Y := 13;
+    zderzenie := false;
+  end;
+  with gracz_czarny do
+  begin
+    wskaznik  := 0;
+    obecny    := prawo;
+    poprzedni := prawo;
+    pozycja.X := 25;
+    pozycja.Y := 14;
+    dlugosc   := 0;
+    zderzenie := false;
+  end;
+end;
+
+// Procedura wyœwietla bie¿¹c¹ punktacjê
+//------------------------------------------------------
+procedure Wyniki;
+begin
+  TextAttr := $80;
+  GotoXY(20,2); write(gracz_czarny.wynik:2);
+  GotoXY(30,2); write('<');
+  TextAttr := $8f;
+  GotoXY(61,2); write(gracz_bialy.wynik:2);
+  GotoXY(51,2); write('>');
+end;
+
+// Procedura wyœwietla planszê gry
+//------------------------------------------------------
+procedure Plansza;
+var
+  i : integer;
+begin
+  TextAttr := $80; ClrScr;
+  for i := 2 to 40 do
+  begin
+    GotoXY(i,3);  write(#219);
+    GotoXY(i,24); write(#219);
+  end;
+  TextAttr := $8f;
+  for i := 41 to 79 do
+  begin
+    GotoXY(i,3);  write(#219);
+    GotoXY(i,24); write(#219);
+  end;
+  for i := 4 to 23 do
+  begin
+    TextAttr := $80; GotoXY(2,i);  write(#219);
+    TextAttr := $8f; GotoXY(79,i); write(#219);
+  end;
+  TextAttr := $80; GotoXY(38,2); write('PUNKTY');
+  PiszGlowice(gracz_czarny,$80);
+  PiszGlowice(gracz_bialy,$8f);
+  Wyniki;
+end;
+
+// Procedura odczytuje stan klawiatury i jeœli naciœniêto
+// klawisz kursora, zmieniany jest odpowiednio kierunek
+// uk³adania kostek domina gracza bia³ego
+//------------------------------------------------------
+procedure CzytajKlawiature;
+var
+  c : char;
+begin
+  with gracz_bialy do
+    if KeyPressed then
+    begin
+      repeat
+        c := ReadKey;
+      until c <> #0;
+      case c of
+        #75 : obecny := lewo;
+        #77 : obecny := prawo;
+        #72 : obecny := gora;
+        #80 : obecny := dol;
+      end;
+    end;
+end;
+
+// Procedura analizuje sytuacje komputera i generuje
+// odpowiednie kierunki ruchu
+//------------------------------------------------------
+procedure Analiza;
+var
+  l,i : integer;
+  k   : array[0..3] of integer;
+  p   : COORD;
+begin
+  with gracz_czarny do
+    if not zderzenie then
+    begin
+      p := pozycja;
+      case obecny of
+        gora  : dec(p.Y);
+        dol   : inc(p.Y);
+        prawo : inc(p.X);
+        lewo  : dec(p.X);
+      end;
+      if Znak_na_pozycji(p) <> ' ' then dlugosc := 0;
+      if dlugosc = 0 then
+      begin
+        dlugosc := 1 + random(10);
+        l  := 0;
+        for i := gora to lewo do
+        begin
+          p := pozycja;
+          case i of
+            gora  : dec(p.Y);
+            dol   : inc(p.Y);
+            prawo : inc(p.X);
+            lewo  : dec(p.X);
+          end;
+          if Znak_na_pozycji(p) = ' ' then
+          begin
+            k[l] := i; inc(l);
+          end;
+        end;
+        if l > 0 then obecny := k[random(l)];
+      end;
+    end;
+end;
+
+// Procedura dokonuje ruchu. Jeœli g³owica zderza siê
+// z przeszkod¹, ustawia pole zderzenie. Jeœli zderzenie
+// nastêpuje z g³owic¹ drugiego gracza, zostaje ustawione
+// pole zderzenie w obu rekordach.
+//------------------------------------------------------
+procedure Ruch(var g : TGracz; a : integer);
+begin
+  with g do
+  begin
+    TextAttr  := a;
+    gotoXY(pozycja.X,pozycja.Y);
+    write(domino[poprzedni * 4 + obecny + 1]);
+    Zapisz(g); poprzedni := obecny;
+    if not zderzenie then
+    begin
+      dec(dlugosc);
+      case obecny of
+        gora  : dec(pozycja.Y);
+        dol   : inc(pozycja.Y);
+        lewo  : dec(pozycja.X);
+        prawo : inc(pozycja.X);
+      end;
+      case Znak_na_pozycji(pozycja) of
+        ' '   : begin // wolne miejsce
+                  PiszGlowice(g,a);
+                end;
+        'X'   : begin  // zderzenie z g³owic¹
+                  gracz_bialy.zderzenie  := true;
+                  gracz_czarny.zderzenie := true;
+                end;
+      else             // zderzenie z normaln¹ przeszkod¹
+        zderzenie := true;
+      end;
+    end;
+  end;
+end;
+
+// Procedura pobiera ze stosu kostkê domina gracza.
+// Sprawdza, czy jest ustawione pole zderzenie. Jeœli tak,
+// pobrana kostka zostanie wyswietlona jako przewrócona.
+//------------------------------------------------------
+procedure PrzewracajKostke(var g : TGracz; a : integer);
+begin
+  TextAttr := a;
+  with g do
+  begin
+    Czytaj(g);
+    if zderzenie then
+    begin
+      GotoXY(pozycja.X,pozycja.Y);
+      write(upadek[kkod + 1]);
+    end;
+  end;
+end;
+
+// Procedura animuje przewracanie kostek domina dla gracza
+// przegranego (lub obu). Modyfikuje liczbê punktów.
+//------------------------------------------------------
+procedure PodsumujRunde;
+begin
+  while (gracz_czarny.wskaznik > 0) or
+        (gracz_bialy.wskaznik  > 0) do
+  begin
+    PrzewracajKostke(gracz_czarny,$80);
+    PrzewracajKostke(gracz_bialy,$8f);
+    Delay(50);
+  end;
+  if gracz_czarny.zderzenie then inc(gracz_bialy.wynik);
+  if gracz_bialy.zderzenie  then inc(gracz_czarny.wynik);
+  Wyniki;
+  while KeyPressed do
+  begin
+    ReadKey; Delay(100);
+  end;
+end;
+
+// Procedura obs³uguje jedn¹ rundê. Wyjœcie nastêpuje
+// po przegranej jednego z graczy (lub obu)
+//------------------------------------------------------
+procedure GrajRunde;
+var
+  l : integer;
+begin
+  InicjujRunde;
+  Plansza;
+  l := 0;
+  repeat
+    inc(l); Delay(8);
+    CzytajKlawiature;
+    if l = 10 then
+    begin
+      Analiza;
+      Ruch(gracz_czarny,$80);
+    end;
+    if l = 20 then
+    begin
+      l := 0;
+      Ruch(gracz_bialy,$8f);
+    end;
+  until gracz_bialy.zderzenie or gracz_czarny.zderzenie;
+  PodsumujRunde;
+end;
+
+// Funkcja sprawdza, czy któryœ z graczy osi¹gn¹³ 12 punktów.
+// Jeœli nie, to zwraca false. Jeœli tak, to wypisuje
+// informacje o koñcu gry i zwraca true.
+//------------------------------------------------------
+function KoniecRund : boolean;
+begin
+  if (gracz_bialy.wynik = 12) or
+     (gracz_czarny.wynik = 12) then
+  begin
+    TextAttr := $8f;
+    GotoXY(1,1); Centruj(PL('G-R-A  S-K-O-Ñ-C-Z-O-N-A'));
+    Result := true;
+  end
+  else Result := false;
+end;
+
+// Funkcja upewnia siê, czy gracz chce zakoñczyæ grê w Domino.
+// Jeœli tak, zwraca true.
+//------------------------------------------------------
+function KoniecGry : boolean;
+begin
+  TextAttr := $8e; GotoXY(21,25);
+  write('Jeszcze raz ? ');
+  TextAttr := $8f;
+  write('[T] = Tak, [Inny] = Nie.');
+  Result := UpCase(ReadKey) <> 'T';
+end;
+
+var
+  a : integer;
+begin
+  Randomize;
+  a := TextAttr; CursorOff;
+  repeat
+    StronaTytulowa;
+    gracz_bialy.wynik  := 0;
+    gracz_czarny.wynik := 0;
+    repeat
+      GrajRunde;
+    until KoniecRund;
+  until KoniecGry;
+  TextAttr := a; CursorOn; ClrScr;
+end. 
