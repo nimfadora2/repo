@@ -1,4 +1,4 @@
-//   Prosta gra logiczna w odgadywanie liczb
+//   Prosta gra logiczna w odgadywanie 
 //--------------------------------------------
 // (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
 
