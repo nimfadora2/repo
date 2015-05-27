@@ -1,0 +1,431 @@
+//            G R A  W  ¯ Y C I E
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+
+#include <conio.h>
+#include <windows.h>
+#include <iostream>
+#include <iomanip>
+
+using namespace std;
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+const int BLACK        = 0;
+const int BLUE         = 1;
+const int GREEN        = 2;
+const int CYAN         = 3;
+const int RED          = 4;
+const int MAGENTA      = 5;
+const int BROWN        = 6;
+const int LIGHTGRAY    = 7;
+const int DARKGRAY     = 8;
+const int LIGHTBLUE    = 9;
+const int LIGHTGREEN   = 10;
+const int LIGHTCYAN    = 11;
+const int LIGHTRED     = 12;
+const int LIGHTMAGENTA = 13;
+const int YELLOW       = 14;
+const int WHITE        = 15;
+
+static int __BACKGROUND = BLACK;
+static int __FOREGROUND = LIGHTGRAY;
+
+// Procedura ustawia pozycjê wydruku w oknie konsoli
+//----------------------------------------------------
+void gotoxy(int x, int y)
+{
+  COORD c;
+
+  c.X = x - 1;
+  c.Y = y - 1;
+  SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), c);
+}
+
+// Procedura ustawia kolor t³a wydruku
+//----------------------------------------------------
+void textbackground(int color)
+{
+  __BACKGROUND = color;
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),
+    __FOREGROUND + (color << 4));
+}
+
+// Procedura ustawia kolor tekstu
+//----------------------------------------------------
+void textcolor(int color)
+{
+  __FOREGROUND = color;
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),
+    color + (__BACKGROUND << 4));
+}
+
+// Procedura ustawia atrybuty koloru tekstu i t³a
+//----------------------------------------------------
+void textattr(int _attr)
+{
+  SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), _attr);
+}
+
+// Funkcja zwraca aktualn¹ pozycjê x kursora
+//----------------------------------------------------
+int wherex()
+{
+  CONSOLE_SCREEN_BUFFER_INFO info;
+
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+  return info.dwCursorPosition.X + 1;
+}
+
+// Funkcja zwraca aktualn¹ pozycjê y kursora
+//----------------------------------------------------
+int wherey()
+{
+  CONSOLE_SCREEN_BUFFER_INFO info;
+
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &info);
+  return info.dwCursorPosition.Y + 1;
+}
+
+// Procedura czyœci zawartoœæ okna konsoli
+//----------------------------------------------------
+void clrscr()
+{
+  DWORD written;
+
+  FillConsoleOutputAttribute(GetStdHandle (STD_OUTPUT_HANDLE),
+    __FOREGROUND + (__BACKGROUND << 4), 2000, (COORD){0, 0}, &written);
+  FillConsoleOutputCharacter(GetStdHandle(STD_OUTPUT_HANDLE), ' ',
+    2000, (COORD){0, 0}, &written);
+  gotoxy(1, 1);
+}
+
+// Procedura ukrywa kursor okienka konsoli
+//------------------------------------------------------
+void CursorOff()
+{
+  CONSOLE_CURSOR_INFO Info;
+
+  GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+  Info.bVisible = 0;
+  SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+};
+
+// Procedura przywraca kursor okienka konsoli
+//------------------------------------------------------
+void CursorOn()
+{
+  CONSOLE_CURSOR_INFO Info;
+
+  GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+  Info.bVisible = -1;
+  SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &Info); 
+};
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+string PL(string s)
+{
+  int i;
+  char c;
+
+  for(i = 0; i < s.length(); i++)
+  {
+    switch(s[i])
+    {
+      case '¹' : c = char(165); break;
+      case 'æ' : c = char(134); break;
+      case 'ê' : c = char(169); break;
+      case '³' : c = char(136); break;
+      case 'ñ' : c = char(228); break;
+      case 'ó' : c = char(162); break;
+      case 'œ' : c = char(152); break;
+      case '¿' : c = char(190); break;
+      case 'Ÿ' : c = char(171); break;
+      case '¥' : c = char(164); break;
+      case 'Æ' : c = char(143); break;
+      case 'Ê' : c = char(168); break;
+      case '£' : c = char(157); break;
+      case 'Ñ' : c = char(227); break;
+      case 'Ó' : c = char(224); break;
+      case 'Œ' : c = char(151); break;
+      case '¯' : c = char(189); break;
+      case '' : c = char(141); break;
+      default:   c = s[i]; 
+    };
+    s[i] = c;
+  };
+  return(s);
+}
+
+// Procedura centruje w bie¿¹cym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+void Centruj(string t)
+{
+  gotoxy(1 + (80 - t.length()) / 2, wherey());
+  cout << t << endl;
+}
+
+// Procedura rysuje pojedyncz¹ ramkê ze znaków
+// tabelek. Parametry okreœlaj¹ wspó³rzêdne
+// lewego górnego i prawego dolnego naro¿nika
+//----------------------------------------------------
+void Ramka(int xp,int yp,int xk,int yk)
+{
+  int i;
+
+  gotoxy(xp,yp); putch(char(218));
+  gotoxy(xp,yk); putch(char(192));
+  gotoxy(xk,yp); putch(char(191));
+  gotoxy(xk,yk); putch(char(217));
+  for(i = xp + 1; i <= xk - 1; i++)
+  {
+    gotoxy(i,yp); putch(char(196));
+    gotoxy(i,yk); putch(char(196));
+  };
+  for(i = yp + 1; i <= yk - 1; i++)
+  {
+    gotoxy(xp,i); putch(char(179));
+    gotoxy(xk,i); putch(char(179));
+  };
+}
+
+// Procedura wprowadza opóŸnienie
+// o zadan¹ iloœæ milisekund
+//----------------------------------------------------
+void Delay(int d)
+{
+  long start;
+
+  start = GetTickCount();
+  while((GetTickCount() - start) < d);
+}
+
+//------------------------------------------------------
+// PROGRAM GRY
+//------------------------------------------------------
+
+// Definicje obiektów
+//------------------------------------------------------
+
+class TZycie
+{
+  private:
+    int pobc[25][80],pnst[25][80],px,py,pokolenie,populacja;
+    int Akcja();
+    void NastepnePokolenie();
+    void Plansza();
+    void StronaTytulowa();
+    void UsunOrganizmy();
+  public:
+    TZycie();
+    ~TZycie();
+    void Graj();
+};
+
+// Definicje metod
+//------------------------------------------------------
+TZycie::TZycie()
+{
+  CursorOff();
+}
+
+TZycie::~TZycie()
+{
+  textcolor(7); textbackground(0); CursorOn(); clrscr();
+}
+
+// Procedura wyœwietla stronê tytu³ow¹, czeka na dowolny
+// klawisz i czyœci ekran
+//------------------------------------------------------
+void TZycie::StronaTytulowa()
+{
+  textcolor(7); textbackground(0); clrscr();
+  gotoxy(1,4); textattr(0x6f);
+  Centruj(PL("                                  "));
+  Centruj(PL("        G R A  W  ¯ Y C I E       "));
+  Centruj(PL("                                  "));
+  textattr(0xce);
+  Centruj(PL("                                  "));
+  Centruj(PL("    (C)2004 mgr Jerzy Wa³aszek    "));
+  Centruj(PL("                                  "));
+  textattr(0xe2);
+  Centruj(PL("                                  "));
+  Centruj(PL("     I Liceum Ogólnokszta³c¹ce    "));
+  Centruj(PL("   im. Kazimierza  Brodziñskiego  "));
+  Centruj(PL("             w Tarnowie           "));
+  Centruj(PL("                                  "));
+  textattr(0xf1);
+  Centruj(PL("                                  "));
+  Centruj(PL("    Buduj i badaj ró¿ne uk³ady    "));
+  Centruj(PL("           ¿ywych kolonii         "));
+  Centruj(PL("                                  "));
+  textattr(0xf4);
+  Centruj(PL("        Gdy bêdziesz gotowy,      "));
+  Centruj(PL("     naciœnij dowolny klawisz     "));
+  Centruj(PL("                                  "));
+  textattr(0x0c); Ramka(23,3,58,22);
+  while(getch() == '\0') ; // Oczekiwanie na dowolny klawisz
+  clrscr(); gotoxy(1,8); textcolor(14);
+  Centruj(PL("Do sterowania gr¹ u¿ywaj nastêpuj¹cych klawiszy"));
+  cout << endl; textcolor(15);
+  Centruj(PL("[strza³ki] - zmiana aktywnej komórki           "));
+  Centruj(PL("[Enter]    - przejœcie do nastêpnego pokolenia "));
+  Centruj(PL("[spacja]   - wstawianie/usuwanie organizmu     "));
+  Centruj(PL("[Delete]   - zerowanie planszy gry             "));
+  Centruj(PL("[F1]       - start/stop generacji pokoleñ      "));
+  Centruj(PL("[Escape]   - zakoñczenie pracy programu        "));
+  cout << endl; textcolor(10);
+  Centruj(PL("Gdy bêdziesz gotowy, naciœnij dowolny klawisz. "));
+  while(getch() == '\0') ; // Oczekiwanie na dowolny klawisz
+  clrscr();
+}
+
+// Procedura zeruje pole gry pobc, umieszcza kursor
+// na œrodku i wyœwietla pole w oknie konsoli
+//------------------------------------------------------
+void TZycie::UsunOrganizmy()
+{
+  int i,j;
+
+  for(i = 2; i <= 24; i++)
+    for(j = 2; j <= 79; j++) pobc[i][j] = false;
+  px = 40; py = 12; pokolenie = 0;
+  Plansza();
+}
+
+// Procedura wyœwietla obecn¹ planszê gry
+//------------------------------------------------------
+void TZycie::Plansza()
+{
+  int i,j;
+  string s;
+
+  populacja = 0; textattr(0x0e); gotoxy(32,1);
+  cout << "Pokolenie nr " << pokolenie << "     ";
+  textattr(0x1f);
+  for(i = 2; i <= 24; i++)
+  {
+    gotoxy(2,i); s = "";
+    for(j = 2; j <= 79; j++)
+      if(pobc[i][j])
+      {
+        s += "O"; populacja++;
+      }
+      else s += " ";
+    cout << s;
+  };
+  gotoxy(25,25); textattr(0x0c);
+  cout << PL("Liczba organizmów ¿ywych : ") << populacja << "     ";
+}
+
+// Procedura generuje nastêpne pokolenie organizmów
+//------------------------------------------------------
+void TZycie::NastepnePokolenie()
+{
+  int i,j,k,w,x,y,ls;
+
+  for(i = 2; i <= 24; i++)
+    for(j = 2; j <= 79; j++)
+    {
+      ls = 0;
+      for(k = -1; k <= 1; k++)
+        for(w = -1; w <= 1; w++)
+          if((k != 0) || (w != 0))
+          {
+            x = j + k;
+            if(x == 80) x = 2; else if(x == 1) x = 79;
+            y = i + w;
+            if(y == 25) y = 2; else if(y == 1) y = 24;
+            if(pobc[y][x]) ls++;
+          };
+      if(pobc[i][j])
+        pnst[i][j] = (ls == 2) || (ls == 3);
+      else
+        pnst[i][j] = (ls == 3);
+    };
+  for(i = 2; i <= 24; i++)
+    for(j = 2; j <= 79; j++) pobc[i][j] = pnst[i][j];
+  pokolenie++;
+  Plansza();
+}
+
+// Funkcja obs³uguje poszczególne akcje z klawiatury.
+//------------------------------------------------------
+int TZycie::Akcja()
+{
+  char klawisz,c;
+  int a,l;
+
+  if(pobc[py][px]) c = 'O'; else c = ' ';
+  l = 0; a = 0xce;
+  while(!kbhit())
+    if(!l)
+    {
+      l = 15; a = (~a) & 0xff;; gotoxy(px,py);
+      textattr(a); cout << c;
+    }
+    else
+    {
+      l--; Delay(10);
+    };
+  gotoxy(px,py); textattr(0x1f); cout << c;
+  while((klawisz = getch()) == '\0');
+  switch(klawisz)
+  {
+    case char(13) : NastepnePokolenie(); break; // klawisz Enter
+    case char(27) : return(false);              // klawisz Escape
+    case ' '      : pobc[py][px] = !pobc[py][px]; // klawisz spacji
+                    pokolenie = 0; Plansza(); break;
+    case char(59) : do             // klawisz F1
+                    {
+                      NastepnePokolenie(); Delay(300);
+                      if(populacja)
+                      {
+                        if(kbhit())
+                          while((klawisz = getch())=='\0');
+                        else klawisz = '\0';
+                      }    
+                      else break;
+                    } while(klawisz != char(59));
+                    break;
+    case char(72) : py--;   // klawisz strza³ka w górê
+                    if(py < 2) py = 24;
+                    break;
+    case char(75) : px--;   // klawisz strza³ka w lewo
+                    if(px < 2) px = 79;
+                    break;
+    case char(77) : px++;   // klawisz strza³ka w prawo
+                    if(px > 79) px = 2;
+                    break;
+    case char(80) : py++;   // klawisz strza³ka w dó³
+                    if(py > 24) py = 2;
+                    break;
+    case char(83) : UsunOrganizmy(); break; // klawisz Delate
+  };
+  return(true);
+}
+
+// Metoda obs³uguje ca³¹ rozgrywkê
+//------------------------------------------------------
+void TZycie::Graj()
+{
+  StronaTytulowa();
+  UsunOrganizmy();
+  while(Akcja());
+}
+
+//------------------------------------------------------
+// PROGRAM G£ÓWNY
+//------------------------------------------------------
+
+int main()
+{
+  TZycie zycie;
+
+  zycie.Graj();
+} 
