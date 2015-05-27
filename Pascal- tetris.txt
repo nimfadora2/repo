@@ -8,7 +8,7 @@ program GraTetris;
 uses Crt, Windows;
 
 //----------------------------------------------------
-// PROCEDURY I FUNKCJE POMOCNICZE
+// PROCEDURY I 
 //----------------------------------------------------
 
 // Funkcja PL konwertuje tekst ze standardu Windows 1250
