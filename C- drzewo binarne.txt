@@ -1,5 +1,5 @@
 #include <iostream>
-#include <stdlib.h>
+#include <stdlib.hpp>
 
 struct drzewo{
         struct drzewo *lewy_syn;
