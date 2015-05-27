@@ -1,5 +1,4 @@
 //          M A S T E R   M I N D
-//            WERSJA  OBIEKTOWA
 //--------------------------------------------
 // (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
 
