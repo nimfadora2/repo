@@ -1,0 +1,369 @@
+//                 W ¥ ¯
+//            WERSJA OBIEKTOWA
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+
+program Waz;
+
+uses Crt, Windows;
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+function PL(s : string) : string;
+var
+  i : integer;
+  c : char;
+begin
+  for i := 1 to length(s) do
+  begin
+   case s[i] of
+      '¹' : c := #165;
+      'æ' : c := #134;
+      'ê' : c := #169;
+      '³' : c := #136;
+      'ñ' : c := #228;
+      'ó' : c := #162;
+      'œ' : c := #152;
+      '¿' : c := #190;
+      'Ÿ' : c := #171;
+      '¥' : c := #164;
+      'Æ' : c := #143;
+      'Ê' : c := #168;
+      '£' : c := #157;
+      'Ñ' : c := #227;
+      'Ó' : c := #224;
+      'Œ' : c := #151;
+      '¯' : c := #189;
+      '' : c := #141;
+      else
+        c := s[i]; 
+    end;
+    s[i] := c;
+  end;
+  Result := s;
+end;
+
+// Procedura centruje w bie¿¹cym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+procedure Centruj(t : string);
+begin
+  GotoXY(1 + (80-length(t)) div 2, WhereY);
+  writeln(t);
+end;
+
+// Procedura rysuje pojedyncz¹ ramkê ze znaków
+// tabelek. Parametry okreœlaj¹ wspó³rzêdne
+// lewego górnego i prawego dolnego naro¿nika
+//----------------------------------------------------
+procedure Ramka(xp,yp,xk,yk : integer);
+var
+  i : integer;
+begin
+  GotoXY(xp,yp); write(#218);
+  GotoXY(xp,yk); write(#192);
+  GotoXY(xk,yp); write(#191);
+  GotoXY(xk,yk); write(#217);
+  for i := xp + 1 to xk - 1 do
+  begin
+    GotoXY(i,yp); write(#196);
+    GotoXY(i,yk); write(#196);
+  end;
+  for i := yp + 1 to yk - 1 do
+  begin
+    GotoXY(xp,i); write(#179);
+    GotoXY(xk,i); write(#179);
+  end;
+end;
+
+// Funkcja odczytuje znak na pozycji p okna konsoli
+// Uwaga - znaki ramki bêd¹ odczytane nieprawid³owo jako
+// literki.
+//------------------------------------------------------
+function Znak_na_pozycji(p : COORD) : char;
+var
+  c : char;
+  k : integer;
+begin
+  dec(p.x);
+  dec(p.y);
+  ReadConsoleOutputCharacter(GetStdHandle(STD_OUTPUT_HANDLE),
+                             addr(c),1,p,k);
+  Result := c;
+end;
+
+//------------------------------------------------------
+// PROGRAM GRY
+//------------------------------------------------------
+
+const
+  N = 1716;
+
+type
+  TKolejka = class
+    private
+      k     : array[0..N-1] of COORD;
+      pk,kk : integer;
+      procedure FZapisz(x : COORD);
+      function  FCzytaj : COORD;
+    public
+      constructor Tworz;
+      procedure   Inicjuj;
+      property    d : COORD read FCzytaj write FZapisz;
+  end;
+
+  TWaz = class(TKolejka)
+    private
+      kierunek : integer;
+      glowa    : COORD;
+      c        : char; // znak pod g³ow¹ wê¿a
+      procedure Czytaj_Klawiature;
+      procedure Dlugosc;
+      procedure Malinka;
+      procedure Ruch_Glowy;
+      procedure StronaTytulowa;
+      procedure Usun_Ogon;
+    public
+      constructor Tworz;
+      procedure   Inicjuj;
+      procedure   Graj;
+      function    Koniec : boolean;
+    end;
+
+//------------------------------------------------------
+// Definicje metod obiektowych
+//------------------------------------------------------
+
+// Zapis do kolejki cyklicznej
+//------------------------------------------------------
+procedure TKolejka.FZapisz(x : COORD);
+begin
+  pk := (pk + 1) mod N;
+  k[pk] := x;
+end;
+
+// Odczyt z kolejki cyklicznej
+//------------------------------------------------------
+function TKolejka.FCzytaj : COORD;
+begin
+  Result := k[kk];
+  kk := (kk + 1) mod N;
+end;
+
+constructor TKolejka.Tworz;
+begin
+  Inicjuj;
+end;
+
+procedure TKolejka.Inicjuj;
+begin
+  kk := 0; pk := N - 1;
+end;
+
+constructor TWaz.Tworz;
+begin
+
+end;
+
+// Procedura wyœwietla stronê tytu³ow¹, czeka na dowolny
+// klawisz i czyœci ekran
+//------------------------------------------------------
+procedure TWaz.StronaTytulowa;
+begin
+  TextAttr := $07; ClrScr;
+  GotoXY(1,4);
+  TextAttr := $d0;
+  Centruj(PL('                                  '));
+  Centruj(PL('               W ¥ ¯              '));
+  Centruj(PL('                                  '));
+  TextAttr := $71;
+  Centruj(PL('                                  '));
+  Centruj(PL('    (C)2004 mgr Jerzy Wa³aszek    '));
+  Centruj(PL('                                  '));
+  TextAttr := $8e;
+  Centruj(PL('                                  '));
+  Centruj(PL('     I Liceum Ogólnokszta³c¹ce    '));
+  Centruj(PL('   im. Kazimierza  Brodziñskiego  '));
+  Centruj(PL('             w Tarnowie           '));
+  Centruj(PL('                                  '));
+  TextAttr := $f1;
+  Centruj(PL('                                  '));
+  Centruj(PL('    Nakarm g³oduj¹cego gada...    '));
+  Centruj(PL('                                  '));
+  TextAttr := $f4;
+  Centruj(PL('        Gdy bêdziesz gotowy,      '));
+  Centruj(PL('     naciœnij dowolny klawisz     '));
+  Centruj(PL('                                  '));
+  TextAttr := $0a; Ramka(23,3,58,21);
+  while ReadKey = #0 do; // Oczekiwanie na dowolny klawisz
+  TextAttr := $07; ClrScr;
+end;
+
+// Metoda przemieszcza g³owê wê¿a zgodnie z kierunkiem.
+// W polu c umieszcza znak, który znajdowa³ siê w oknie
+// konsoli na pozycji zajêtej obecnie przez g³owê wê¿a.
+//------------------------------------------------------
+procedure TWaz.Ruch_glowy;
+begin
+  case kierunek of
+    1 : dec(glowa.Y); // ruch w górê
+    2 : inc(glowa.X); // ruch w prawo
+    3 : inc(glowa.Y); // ruch w dó³
+    4 : dec(glowa.X); // ruch w lewo
+  end;
+  c := Znak_na_pozycji(glowa);
+  d := glowa; // zapis do kolejki cyklicznej
+  TextAttr := $2e; GotoXY(glowa.x,glowa.y); write('O');
+end;
+
+// Procedura usuwa z okna konsoli ogon wê¿a
+//------------------------------------------------------
+procedure TWaz.Usun_ogon;
+var
+  p : COORD;
+begin
+  p := d; // odczyt kolejki cyklicznej
+  TextAttr := $20; GotoXY(p.X,p.Y); write(' ');
+end;
+
+// Procedura generuje malinkê w wolnym miejscu pola gry.
+//------------------------------------------------------
+procedure TWaz.Malinka;
+var
+  p : COORD;
+begin
+  repeat
+    p.X := 2 + random(78); p.Y := 2 + random(22);
+  until Znak_na_pozycji(p) = ' ';
+  TextAttr := $2d; GotoXY(p.X,p.Y); write('*');
+end;
+
+// Procedura oblicza aktualn¹ d³ugoœæ wê¿a
+//------------------------------------------------------
+procedure TWaz.Dlugosc;
+var
+  dk : integer;
+begin
+  if pk > kk then
+    dk := pk - kk + 1
+  else
+    dk := N + pk - kk + 1;
+  TextAttr := $0b; GotoXY(1,25);
+  write(PL('Aktualna d³ugoœæ wê¿a wynosi : '));
+  TextAttr := $0f; write(dk);
+end;
+
+// Procedura odczytuje stan klawiatury i jeœli naciœniêto
+// klawisz kursora, zmieniany jest odpowiednio kierunek
+// ruchu wê¿a
+//------------------------------------------------------
+procedure TWaz.Czytaj_Klawiature;
+var
+  klawisz : char;
+begin
+  if KeyPressed then
+  begin
+    repeat
+      klawisz := ReadKey;
+    until klawisz <> #0;
+    case klawisz of
+      #75 : kierunek := 4; //strza³ka w lewo
+      #77 : kierunek := 2; //strza³ka w prawo
+      #72 : kierunek := 1; //strza³ka w górê
+      #80 : kierunek := 3; //strza³ka w dó³
+    end;
+  end;
+end;
+
+// Procedura przeprowadza rozgrywkê
+//------------------------------------------------------
+procedure TWaz.Graj;
+var
+  licznik : integer;
+begin
+  licznik := 0; c := ' ';
+  repeat
+    Czytaj_Klawiature; Delay(10); inc(licznik);
+    if licznik = 15 then
+    begin
+      licznik := 0; Ruch_glowy;
+      if c = '*' then
+      begin
+        c := ' '; Malinka; Dlugosc;
+      end
+      else Usun_ogon;
+    end;
+  until c <> ' ';
+end;
+
+// Funkcja wyœwietla efekt œmierci wê¿a oraz tekst
+// koñca gry. Nastêpnie zadaje pytanie, czy gracz
+// ¿yczy sobie zakoñczyæ grê. Zwraca false jeœli nie
+// i true, jeœli tak
+//------------------------------------------------------
+function TWaz.Koniec : boolean;
+var
+  p : COORD;
+begin
+  TextAttr := $2f;
+  repeat
+    Delay(50);
+    p := d; GotoXY(p.X,p.Y); write('X');
+  until kk = pk;
+  TextAttr := $ce;
+  GotoXY(1,11);
+  Centruj('                            ');
+  Centruj(PL('  G R A  S K O Ñ C Z O N A  '));
+  Centruj('                            ');
+  Delay(500);
+  while KeyPressed do //ignorujemy przypadkowe naciœniêcia klawiszy
+  begin
+    ReadKey; Delay(200);
+  end;
+  GotoXY(1,15); TextAttr := $2b;
+  Centruj('Jeszcze raz ? [T] = Tak, [Inny] = Nie');
+  Result := UpCase(ReadKey) <> 'T';
+end;
+
+// Inicjalizacja gry
+//------------------------------------------------------
+procedure TWaz.Inicjuj;
+var
+  i,j : integer;
+begin
+  inherited Inicjuj;
+  StronaTytulowa;
+  TextAttr := $2f;
+  for i := 2 to 23 do
+  begin
+    GotoXY(2,i);
+    for j := 1 to 78 do write(' ');
+  end;
+  Ramka(1,1,80,24);
+  kierunek := 2; // ruch w prawo
+  glowa.x := 38; glowa.y := 11;
+  for i := 1 to 5 do Ruch_glowy;
+  Dlugosc; Malinka;
+end;
+
+// Program g³ówny
+//------------------------------------------------------
+var
+  gra : TWaz;
+  a   : integer;
+begin
+  Randomize;
+  a := TextAttr; CursorOff;
+  gra := TWaz.Tworz;
+  with gra do
+    repeat
+      Inicjuj;
+      Graj;
+    until Koniec;
+  TextAttr := a; CursorOn; ClrScr;
+end. 
