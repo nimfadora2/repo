@@ -1,0 +1,620 @@
+//               T E T R I S
+//            WERSJA  FUNKCYJNA
+//--------------------------------------------
+// (C)2004 mgr Jerzy Wa≥aszek  I LO w Tarnowie
+
+program GraTetris;
+
+uses Crt, Windows;
+
+//----------------------------------------------------
+// PROCEDURY I FUNKCJE POMOCNICZE
+//----------------------------------------------------
+
+// Funkcja PL konwertuje tekst ze standardu Windows 1250
+// na standard konsoli znakowej Latin II
+//------------------------------------------------------
+function PL(s : string) : string;
+var
+  i : integer;
+  c : char;
+begin
+  for i := 1 to length(s) do
+  begin
+   case s[i] of
+      'π' : c := #165;
+      'Ê' : c := #134;
+      'Í' : c := #169;
+      '≥' : c := #136;
+      'Ò' : c := #228;
+      'Û' : c := #162;
+      'ú' : c := #152;
+      'ø' : c := #190;
+      'ü' : c := #171;
+      '•' : c := #164;
+      '∆' : c := #143;
+      ' ' : c := #168;
+      '£' : c := #157;
+      '—' : c := #227;
+      '”' : c := #224;
+      'å' : c := #151;
+      'Ø' : c := #189;
+      'è' : c := #141;
+      else
+        c := s[i]; 
+    end;
+    s[i] := c;
+  end;
+  Result := s;
+end;
+
+// Procedura centruje w bieøπcym wierszu
+// tekst podany jako parametr
+//----------------------------------------------------
+procedure Centruj(t : string);
+begin
+  GotoXY(1 + (80-length(t)) div 2, WhereY);
+  writeln(t);
+end;
+
+// Procedura rysuje pojedynczπ ramkÍ ze znakÛw
+// tabelek. Parametry okreúlajπ wspÛ≥rzÍdne
+// lewego gÛrnego i prawego dolnego naroønika
+//----------------------------------------------------
+procedure Ramka(xp,yp,xk,yk : integer);
+var
+  i : integer;
+begin
+  GotoXY(xp,yp); write(#218);
+  GotoXY(xp,yk); write(#192);
+  GotoXY(xk,yp); write(#191);
+  GotoXY(xk,yk); write(#217);
+  for i := xp + 1 to xk - 1 do
+  begin
+    GotoXY(i,yp); write(#196);
+    GotoXY(i,yk); write(#196);
+  end;
+  for i := yp + 1 to yk - 1 do
+  begin
+    GotoXY(xp,i); write(#179);
+    GotoXY(xk,i); write(#179);
+  end;
+end;
+
+// Procedura przesuwa w dÛ≥ o jeden wiersz
+// prostokπtny obszar okna konsoli. WspÛ≥rzÍdne
+// definiujπ obszar przesuniÍcia. Atrybut definiuje
+// kolor pierwszego wiersza, ktÛry zostanie uzupe≥niony
+// po przesuniÍciu.
+//----------------------------------------------------
+procedure PrzesunOkno(xp,yp,xk,yk,attr : integer);
+var
+  Standardowe_Wyjscie      : HANDLE ;
+  Prostokat_Przewijania,
+  Prostokat_Ograniczenia   : SMALL_RECT ;
+  Struktura_Wypelniania    : CHAR_INFO ;
+  Wspolrzedne_Przesuniecia : COORD ;
+begin
+  Standardowe_Wyjscie              := GetStdHandle(STD_OUTPUT_HANDLE);
+  Prostokat_Przewijania.Top        := yp - 1;
+  Prostokat_Przewijania.Bottom     := yk - 1;
+  Prostokat_Przewijania.Left       := xp - 1;
+  Prostokat_Przewijania.Right      := xk - 1;
+  Wspolrzedne_Przesuniecia.X       := xp - 1;
+  Wspolrzedne_Przesuniecia.Y       := yp;
+  Prostokat_Ograniczenia           := Prostokat_Przewijania;
+  Struktura_Wypelniania.Attributes := attr;
+  Struktura_Wypelniania.AsciiChar  := ' ';
+  ScrollConsoleScreenBuffer(Standardowe_Wyjscie,
+                            Prostokat_Przewijania,
+                            Prostokat_Ograniczenia,
+                            Wspolrzedne_Przesuniecia,
+                            Struktura_Wypelniania)
+end;
+
+//------------------------------------------------------
+// PROGRAM GRY
+//------------------------------------------------------
+
+//------------------------------------------------------
+// Struktury danych wykorzystywane w programie
+//------------------------------------------------------
+type
+
+  figura = array[1..4] of string[16];
+
+const
+  zestaw : array[1..7] of figura = (
+  ('XXXX X        X ',
+   '     X        X ',
+   '     X  XXXX  X ',
+   '     X        X '),
+  ('XXX X        XX ',
+   'X   X     X   X ',
+   '    XX  XXX   X ',
+   '                '),
+  ('XXX XX        X ',
+   '  X X   X     X ',
+   '    X   XXX  XX ',
+   '                '),
+  (' XX X    XX X   ',
+   'XX  XX  XX  XX  ',
+   '     X       X  ',
+   '                '),
+  ('XX   X  XX   X  ',
+   ' XX XX   XX XX  ',
+   '    X       X   ',
+   '                '),
+  ('XXX X         X ',
+   ' X  XX   X   XX ',
+   '    X   XXX   X ',
+   '                '),
+  ('XX  XX  XX  XX  ',
+   'XX  XX  XX  XX  ',
+   '                ',
+   '                '));
+
+var
+  pole_gry : array[1..24] of string[14];
+  obecny, obecny_kolor, obecny_obrot, obecny_x, obecny_y,
+  nastepny, nastepny_kolor,
+  zapelnienie, punkty,poziom,wiersze : integer;
+
+//------------------------------------------------------
+// Procedury i funkcje wykorzystywane przez program gry
+//------------------------------------------------------
+
+// Procedura wyúwietla stronÍ tytu≥owπ gry Tetris, czeka
+// na wciúniÍcie klawisza, czyúci ekran i koÒczy.
+//------------------------------------------------------
+procedure StronaTytulowa;
+begin
+  TextAttr := $07; ClrScr;
+  GotoXY(1,4);
+  TextAttr := $1f;
+  Centruj(PL('                                  '));
+  Centruj(PL('            T E T R I S           '));
+  Centruj(PL('                                  '));
+  TextAttr := $2e;
+  Centruj(PL('                                  '));
+  Centruj(PL('    (C)2004 mgr Jerzy Wa≥aszek    '));
+  Centruj(PL('                                  '));
+  TextAttr := $3f;
+  Centruj(PL('                                  '));
+  Centruj(PL('     I Liceum OgÛlnokszta≥cπce    '));
+  Centruj(PL('   im. Kazimierza  BrodziÒskiego  '));
+  Centruj(PL('             w Tarnowie           '));
+  Centruj(PL('                                  '));
+  TextAttr := $f1;
+  Centruj(PL('                                  '));
+  Centruj(PL('     Zbadaj swoje umiejÍtnoúci    '));
+  Centruj(PL(' szybkiego i logicznego myúlenia  '));
+  Centruj(PL('                                  '));
+  TextAttr := $f4;
+  Centruj(PL('        Gdy bÍdziesz gotowy,      '));
+  Centruj(PL('     naciúnij dowolny klawisz     '));
+  Centruj(PL('                                  '));
+  TextAttr := $09; Ramka(23,3,58,22);
+  while ReadKey = #0 do; // Oczekiwanie na dowolny klawisz
+  TextAttr := $07; ClrScr;
+end;
+
+// Procedura umoøliwia wybÛr poziomu startowego dla gry.
+// Pozwala rÛwnieø okreúliÊ wstÍpne zape≥nienie pola gry
+// kwadratami, ktÛre bÍdπ u≥oøone losowo we wybranej
+// iloúci dolnych rzÍdÛw.
+//------------------------------------------------------
+procedure WyborPoziomu;
+var
+  i,j : integer;
+  c   : char;
+begin
+  poziom := 1; zapelnienie := 0;
+  repeat
+    TextAttr := $09; Ramka(1,1,12,24);
+    TextAttr := $ff;
+    for i := 2 to 23 - zapelnienie do
+    begin
+      GotoXY(2,i); write('          ');
+    end;
+    for i := 24 - zapelnienie to 23 do
+    begin
+      GotoXY(2,i);
+      for j := 1 to 10 do
+        if random(2) = 0 then
+        begin
+           TextAttr := random(15)*16; write('_');
+        end
+        else
+        begin
+          TextAttr := $ff; write(' ');
+        end;
+    end;
+    TextAttr := $0c;
+    GotoXY(15,5); writeln('T E T R I S');
+    GotoXY(15,6); writeln('===========');
+    TextAttr := $0e;
+    GotoXY(15,8); writeln('Poziom startowy....... : ',poziom:2);
+    GotoXY(15,10); writeln(PL('Zape≥nienie poczπtkowe : '),zapelnienie:2);
+    TextAttr := $0f; GotoXY(15,12);
+    writeln(PL('Klawisze sterujπce:'));
+    GotoXY(15,14);
+    writeln(PL('[+/-]   - zwiÍkszenie, zmniejszenie poziomu'));
+    GotoXY(15,16);
+    writeln(PL('[Z/X]   - zwiÍkszenie, zmniejszenie zape≥nienia'));
+    GotoXY(15,18);
+    writeln(PL('[Enter] - zatwierdzenie zmian i rozpoczÍcie gry'));
+    c := UpCase(ReadKey);
+    case c of
+      '+' : if poziom < 9 then Inc(poziom);
+      '-' : if poziom > 1 then Dec(poziom);
+      'Z' : if zapelnienie < 15 then Inc(zapelnienie);
+      'X' : if zapelnienie > 0  then Dec(zapelnienie);
+    end;
+  until c = #13;
+end;
+
+// Ustawia i wyúwietla pole gry
+//------------------------------------------------------
+procedure PoleGry;
+var
+  i,j : integer;
+begin
+  for i := 1 to 24 do
+    if i < 23 then
+      pole_gry[i] := 'XX          XX'
+    else
+      pole_gry[i] := 'XXXXXXXXXXXXXX';
+  TextAttr := $07; ClrScr;
+  TextAttr := $09; Ramka(34,1,45,24);
+  for i := 1 to 22 do
+  begin
+    GotoXY(35,i+1); TextAttr := $f0;
+    if i < 23 - zapelnienie then
+      write('          ')
+    else
+      for j := 1 to 10 do
+        if random(2) = 1 then
+        begin
+          TextAttr := random(15) * 16; write('_'); pole_gry[i][j+2] := 'X';
+        end
+        else
+        begin
+          TextAttr := $f0; write(' ');
+        end;
+  end;
+end;
+
+// Wyúwietla nag≥Ûwek na planszy gry
+//------------------------------------------------------
+procedure Logo;
+begin
+  TextAttr := $0c;
+  GotoXY(52,2); write('G R A  W   T E T R I S');
+  TextAttr := $0e;
+  GotoXY(50,3); write(PL('(C)2004 mgr Jerzy Wa≥aszek'));
+  TextAttr := $0f;
+  GotoXY(50,4); write(PL('I Liceum  OgÛlnokszta≥cπce'));
+  GotoXY(59,5); write('w Tarnowie');
+  TextAttr := $09; Ramka(48,1,77,6);
+end;
+
+// Procedura wyúwietla na planszy opis klawiszy.
+//------------------------------------------------------
+procedure Opis;
+begin
+  TextAttr := $09; Ramka(3,1,31,24);
+  TextAttr := $07;
+  GotoXY(4,6); write(PL('Klawisze sterujπce grπ'));
+  GotoXY(4,7); write('======================');
+  TextAttr := $0f;
+  GotoXY(4,9);  write(PL('[w gÛrÍ]     - obrÛt'));
+  GotoXY(4,11); write('[prawo/lewo] - ruch');
+  GotoXY(4,13); write(PL('[w dÛ≥]      - upuszczenie'));
+  GotoXY(4,15); write('[Spacja]     - pauza');
+  GotoXY(4,17); write(PL('[Escape]     - koniec gry'));
+end;
+
+// Procedura wyúwietla na planszy nastÍpnπ figurÍ, czyli
+// element, ktÛry weümie udzia≥ w grze po opuszczeniu
+// bieøπcej figury
+//------------------------------------------------------
+procedure NastepnaFigura;
+var
+  i,j     : integer;
+  ksztalt : string[4];
+begin
+  TextAttr := $09; Ramka(48,8,77,15);
+  TextAttr := $ff;
+  for i := 9 to 14 do
+  begin
+    GotoXY(49,i); write('                            ');
+  end;
+  TextAttr := $f4; GotoXY(55,9); write(PL('NastÍpna figura'));
+  for i := 1 to 4 do
+  begin
+    GotoXY(61,10+i); ksztalt := zestaw[nastepny][i];
+    for j := 1 to 4 do
+      if ksztalt[j] = 'X' then
+      begin
+        TextAttr := nastepny_kolor; write('_');
+      end
+      else
+      begin
+        TextAttr := $ff; write(' ');
+      end;
+  end;
+end;
+
+// Procedura wyúwietla poziom oraz punkty
+//------------------------------------------------------
+procedure PoziomPunkty;
+begin
+  TextAttr := $09; Ramka(48,17,77,24);
+  TextAttr := $0c; GotoXY(55,18);
+  write(PL('Bieøπca punktacja'));
+  TextAttr := $0e;
+  GotoXY(56,20); write('Poziom : ',poziom:6);
+  GotoXY(56,22); write('Wynik  : ',punkty:6);
+end;
+
+// Procedura ustawia planszÍ gry i wyúwietla jπ w oknie
+// konsoli wraz ze wszystkimi napisami gry
+//------------------------------------------------------
+procedure Plansza;
+begin
+  nastepny := random(7) + 1; nastepny_kolor := random(15) * 16;
+  wiersze := 0; punkty := 0;
+  PoleGry;
+  Opis;
+  Logo;
+  NastepnaFigura;
+  PoziomPunkty;
+end;
+
+// Procedura losuje kolejny kawa≥ek
+//------------------------------------------------------
+procedure Losuj;
+begin
+  obecny := nastepny; obecny_kolor := nastepny_kolor;
+  nastepny := 1 + random(7); nastepny_kolor := random(15) * 16;
+  NastepnaFigura;
+  obecny_x := 6; obecny_y := 1; obecny_obrot := 1;
+end;
+
+// Funkcja sprawdza, czy podany kawa≥ek da siÍ wprowadziÊ
+// na planszÍ gry. Jeúli nie, to zwraca true.
+//------------------------------------------------------
+function Kolizja(figura,obrot,x,y : integer) : boolean;
+var
+  i,j     : integer;
+  ksztalt : string[4];
+begin
+  for i := 1 to 4 do
+  begin
+    ksztalt := Copy(zestaw[figura][i],1 + 4 * (obrot - 1),4);
+    for j := 1 to 4 do
+      if (ksztalt[j] = 'X') and (pole_gry[y + i - 1][x + j - 1] = 'X') then
+      begin
+        Result := true; Exit;
+      end;
+  end;
+  Result := false;
+end;
+
+// Procedura dla tryb = true wyúwietla bieøπcπ figurÍ
+// na jej aktualnych wspÛ≥rzÍdnych w obrÍbie planszy
+// gry, a dla tryb = false usuwa tÍ figurÍ z planszy
+//------------------------------------------------------
+procedure PokazFigure(tryb : boolean);
+var
+  i,j     : integer;
+  ksztalt : string[4];
+begin
+  if tryb then
+    TextAttr := obecny_kolor
+  else
+    TextAttr := $ff;
+  for i := 1 to 4 do
+  begin
+    ksztalt := Copy(zestaw[obecny][i],1 + 4 * (obecny_obrot - 1),4);
+    for j := 1 to 4 do
+      if ksztalt[j] = 'X' then
+      begin
+        GotoXY(31 + obecny_x + j, obecny_y + i);
+        if tryb then write('_') else write(' ');
+      end;
+  end;
+end;
+
+procedure Ruch_w_lewo;
+begin
+  if not Kolizja(obecny,obecny_obrot,obecny_x-1,obecny_y) then
+  begin
+    PokazFigure(false); dec(obecny_x); PokazFigure(true);
+  end;
+end;
+
+procedure Ruch_w_prawo;
+begin
+  if not Kolizja(obecny,obecny_obrot,obecny_x+1,obecny_y) then
+  begin
+    PokazFigure(false); inc(obecny_x); PokazFigure(true);
+  end;
+end;
+
+procedure Obrot;
+var
+  xobo : integer;
+begin
+  xobo := obecny_obrot + 1; if xobo > 4 then xobo := 1;
+  if not Kolizja(obecny,xobo,obecny_x,obecny_y) then
+  begin
+    PokazFigure(false); obecny_obrot := xobo; PokazFigure(true);
+  end;
+end;
+
+function Ruch_w_dol : boolean;
+begin
+  if not Kolizja(obecny,obecny_obrot,obecny_x,obecny_y+1) then
+  begin
+    PokazFigure(false); inc(obecny_y); PokazFigure(true);
+    Result := true;
+  end
+  else Result := false;
+end;
+
+// Procedura wpisuje bieøπcy kawa≥ek do planszy gry
+//------------------------------------------------------
+procedure Wpisz;
+var
+  i,j     : integer;
+  ksztalt : string[4];
+begin
+  for i := 1 to 4 do
+  begin
+    ksztalt := Copy(zestaw[obecny][i],1 + 4 * (obecny_obrot - 1),4);
+    for j := 1 to 4 do
+      if ksztalt[j] = 'X' then
+        pole_gry[obecny_y + i - 1][obecny_x + j - 1] := 'X';
+  end;
+end;
+
+// Procedura przeglπda pole gry i usuwa z niego kaødy
+// pe≥ny wiersz. IloúÊ usuniÍtych wierszy jest zliczana
+// i s≥uøy pÛüniej do zwiÍkszenia punktacji gracza.
+//------------------------------------------------------
+procedure UsunPelneWiersze;
+var
+  i,j,licznik_wierszy : integer;
+begin
+  licznik_wierszy := 0; i := 22;
+  while i > 0 do
+  begin
+    if pole_gry[i] = 'XXXXXXXXXXXXXX' then
+    begin
+      inc(licznik_wierszy);
+      for j := i downto 2 do
+        pole_gry[j] := pole_gry[j - 1];
+      pole_gry[1] := 'XX          XX';
+      PrzesunOkno(35,2,44,i+1,$f0);
+    end
+    else dec(i);
+  end;
+  case licznik_wierszy of
+    1 : inc(punkty,50);
+    2 : inc(punkty,150);
+    3 : inc(punkty,300);
+    4 : inc(punkty,600);
+  end;
+  inc(wiersze,licznik_wierszy);
+  if wiersze > 50 then
+  begin
+    wiersze := wiersze - 50;
+    inc(punkty,1000);
+    if poziom < 9 then inc(poziom);
+  end;
+end;
+
+// Procedura upuszcza bieøπcy kawa≥ek
+//------------------------------------------------------
+procedure Upuszczenie;
+begin
+  while Ruch_w_dol do
+  begin
+    Inc(punkty); PoziomPunkty; Delay(10);
+  end;
+  Wpisz; UsunPelneWiersze; inc(punkty,5); PoziomPunkty;
+end;
+
+// Funkcja obs≥uguje ruch figury w obrÍbie planszy.
+// Zwraca true, jeúli w trakcie wstawiania nowej figury
+// nastÍpuje kolizja z zawartoúciπ pola gry.
+//------------------------------------------------------
+function Brak_Miejsca : boolean;
+var
+  c     : char;
+  lc,li : integer;
+begin
+  if Kolizja(obecny,obecny_obrot,obecny_x,obecny_y) then
+  begin
+    PokazFigure(true); Result := true;
+  end
+  else
+  begin
+    lc := 100 - 10 * (poziom - 1); li := lc;
+    PokazFigure(true);
+    repeat // UWAGA - to jest pÍtla nieskoÒczona
+      if KeyPressed then
+      begin
+        repeat c := ReadKey; until c <> #0;
+        case c of
+          #27 : begin
+                  Result := true; Exit;
+                end;
+          #32 : while ReadKey <> #32 do;
+          #75 : Ruch_w_lewo;
+          #77 : Ruch_w_prawo;
+          #72 : Obrot;
+          #80 : begin
+                  Upuszczenie; break; // Wyjúcie z pÍtli
+                end;
+        end;
+      end;
+      Dec(li); Delay(8);
+      if li = 0 then
+      begin
+        li := lc;
+        if not Ruch_w_dol then
+        begin
+          Wpisz; UsunPelneWiersze; inc(punkty,5); PoziomPunkty;
+          break; // Wyjúcie z pÍtli
+        end;
+      end;
+    until false;
+    Result := false;
+  end;
+end;
+
+// Procedura przeprowadza rozgrywkÍ w Tetris
+//------------------------------------------------------
+procedure Gra;
+begin
+  Plansza;
+  repeat
+    Losuj;
+  until Brak_Miejsca;
+  while KeyPressed do
+  begin
+    ReadKey; Delay(100);
+  end;
+end;
+
+// Funkcja zwraca true, jeúli gracz chce zakoÒczyÊ grÍ.
+//------------------------------------------------------
+function KoniecGry : boolean;
+begin
+  GotoXY(1,11); TextAttr := $4e;
+  Centruj('                                       ');
+  Centruj(' Jeszcze raz ? [T] = Tak, [Inny] = Nie ');
+  Centruj('                                       ');
+  Result := UpCase(ReadKey) <> 'T';
+end;
+
+//------------------------------------------------------
+// Tutaj rozpoczyna siÍ program g≥Ûwny
+//------------------------------------------------------
+
+var
+  a : integer;
+
+begin
+  Randomize;
+  a := TextAttr; CursorOff;
+  repeat
+    StronaTytulowa;
+    WyborPoziomu;
+    Gra;
+  until KoniecGry;
+  TextAttr := a; CursorOn; ClrScr;
+end. 
