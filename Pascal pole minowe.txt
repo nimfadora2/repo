@@ -1,7 +1,7 @@
 //          P O L E   M I N O W E
 //           WERSJA PROCEDURALNA
 //--------------------------------------------
-// (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
+// (C)2004 mgr Jerzy Wa³aszrnowie
 
 program PoleMinowe;
 
