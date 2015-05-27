@@ -1,0 +1,32 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+struct drzewo{
+        struct drzewo *lewy_syn;
+        struct drzewo *prawy_syn;
+        char *dane;
+};
+
+
+int main(int argv, char *args[]) {
+   
+   struct drzewo *korzen;
+   
+   korzen = (struct drzewo*)malloc(sizeof(struct drzewo));
+   korzen->prawy_syn = (struct drzewo*)malloc(sizeof(struct drzewo));
+   korzen->lewy_syn = (struct drzewo*)malloc(sizeof(struct drzewo));
+   
+   korzen->dane = "korzen";
+   korzen->prawy_syn->dane = "prawy syn";
+   korzen->lewy_syn->dane = "lewy syn";
+   
+   printf("%s\n",korzen->dane);
+   printf("%s\n",korzen->prawy_syn->dane);
+   printf("%s\n",korzen->lewy_syn->dane);
+   
+   free(korzen->prawy_syn);
+   free(korzen->lewy_syn);
+   free(korzen);
+
+   return 0;
+}
