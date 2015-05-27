@@ -1,4 +1,4 @@
-void lista::usun_osobe (int nr)
+void lista::usun_osobe (
 {
     // jezeli to pierwszy element listy
     if (nr==1)
