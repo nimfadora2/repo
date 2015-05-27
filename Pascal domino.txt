@@ -3,7 +3,6 @@
 //--------------------------------------------
 // (C)2004 mgr Jerzy Wa³aszek  I LO w Tarnowie
 
-program GraDomino;
 
 uses Crt, Windows;
 
